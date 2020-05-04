@@ -39,6 +39,35 @@ trait CRUD
 
     }
 
+    public function saveWithoutId($tableName,$data){
+        
+        $values = "";
+        $holder = [];
+        $placeHolder = "";
+
+        for ($i=0; $i < count($data); $i++) { 
+          array_push($holder, "?");          
+        }
+
+        $values .= implode(",",array_keys($data));
+
+        $placeHolder .= implode(",",$holder);
+
+
+        $q = "INSERT INTO ".$tableName." (".$values.") "." VALUES (".$placeHolder.")";
+        $stmt = $this->conn->prepare($q);
+        $stmt->execute(array_values($data));
+
+        $error = $stmt->errorInfo();
+        if(empty($error[2])){
+            return true;
+        }else {
+            return false;
+        }       
+        
+
+    }
+    
     public function display($tableName,$offset = 0,$limit = 0){
         $stmt = "";
         if(func_num_args() == 1){
@@ -175,6 +204,28 @@ trait CRUD
         $count = $row[0];
         return $count;
      }
+    
+    
+    public function findByMultipleFields($tableName,$fields){
+        $arr = [];
+        $values = "";
+        
+        foreach ($fields as $item => $v) {
+            $arr[$item] = $item."= ? ";
+        }
+
+        $values .= implode(" and ",$arr);
+        
+        $q = "SELECT * FROM ".$tableName." WHERE ".$values."  ORDER BY 1 ";
+        $stmt = $this->conn->prepare($q);
+        $i = 1;
+        foreach ($fields as $fieldName => $value) {
+            $stmt->bindValue($i,$value);
+            $i++;
+        }
+        $stmt->execute();
+        return  $stmt; 
+    }
 
 
      
