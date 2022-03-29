@@ -30,23 +30,27 @@ trait CRUD
         $stmt->execute($data);
 
         $error = $stmt->errorInfo();
-
         if(empty($error[2])){
             return true;
         }else {
             return $error[2];
         }
-
     }
+
 
     public function saveWithoutId($tableName,$data){
         
         $values = "";
         $holder = [];
         $placeHolder = "";
+        $trimedData = array();
 
         for ($i=0; $i < count($data); $i++) { 
           array_push($holder, "?");          
+        }
+
+        foreach ($data as $key => $value) {
+            array_push($trimedData, trim($value));
         }
 
         $values .= implode(",",array_keys($data));
@@ -60,24 +64,25 @@ trait CRUD
 
         $error = $stmt->errorInfo();
         if(empty($error[2])){
-            return true;
+            return $this->conn->lastInsertId();
         }else {
-            return false;
-        }       
+            return $error[2];
+        }    
+       
         
 
     }
-    
+
     public function display($tableName,$offset = 0,$limit = 0){
         $stmt = "";
         if(func_num_args() == 1){
-            $q = "SELECT * FROM ".$tableName."  ORDER BY 2 ASC";
+            $q = "SELECT * FROM ".$tableName."  ORDER BY 1 DESC";
             $stmt = $this->conn->prepare($q);
             $stmt->execute();
 
 
         }else {
-            $q = "SELECT * FROM ".$tableName."  ORDER BY 2 ASC LIMIT $offset,$limit";
+            $q = "SELECT * FROM ".$tableName."  ORDER BY 1 DESC LIMIT $offset,$limit";
             $stmt = $this->conn->prepare($q);
             $stmt->execute();
         }
@@ -104,6 +109,31 @@ trait CRUD
     }
 
 
+    public function displayWithLimit($tableName,$limit){
+        
+        $q = "SELECT * FROM ".$tableName."  ORDER BY 1 DESC limit $limit";
+            $stmt = $this->conn->prepare($q);
+            $stmt->execute();
+        
+
+        return $stmt;
+    }
+
+
+    public function countRows($db,$table)
+    {
+        $q = "SELECT  TABLE_ROWS 
+              FROM information_schema.TABLES WHERE TABLES.TABLE_SCHEMA = ?
+              AND TABLES.TABLE_NAME = ? ";
+         $stmt = $this->conn->prepare($q);
+         $stmt->bindValue(1,$db);
+         $stmt->bindValue(2,$table);
+         $stmt->execute();
+
+         $row = $stmt->fetch();
+         $count = $row['TABLE_ROWS'];
+         return $count;
+    }
 
     public function findById($tableName,$condition,$id,$offset = 0,$limit = 0){
         $stmt = "";
@@ -134,7 +164,7 @@ trait CRUD
         if(empty($error[2])){
             return true;
         }else {
-            return false;
+            return $error;
         }
     }
 
@@ -155,10 +185,13 @@ trait CRUD
     }
 
 
-    function updateTable($table,&$fields,$condition) {
+    
+
+
+    function update($table,&$fields,$condition) {
         $sql = "UPDATE $table set ";
         foreach($fields as $key => $value) {
-            $fields[$key] = " $key = '".$value."' ";
+            $fields[$key] = " $key = '".addslashes($value)."' ";
         }
         $sql .= implode(" , ",array_values($fields))." WHERE id = ".$condition.";";
 
@@ -170,12 +203,31 @@ trait CRUD
         if(empty($error[2])){
             return true;
         }else {
-            return false;
+            return $error[2];
         }
 
         
 
-        
+     }
+
+     function updateTableById($table,&$fields,$condition,$id) {
+        $sql = "UPDATE $table set ";
+        foreach($fields as $key => $value) {
+            $fields[$key] = " $key = '".$value."' ";
+        }
+        $sql .= implode(" , ",array_values($fields))." WHERE ".$condition."  = ".$id.";";
+
+        $fields = array();
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute();
+        $error = $stmt->errorInfo();
+
+        if(empty($error[2])){
+            return true;
+        }else {
+            return $error[2];
+        }
+
      }
 
      public function getOneFieldById($table,$field,$clause,$id){
@@ -191,45 +243,37 @@ trait CRUD
 
 
     
-
-
-      public function getCountById($table,$user,$feild)
+     public function selectByMore($table,$fields)
      {
-        $q = "SELECT COUNT(*) FROM ". $table ." WHERE " . $feild . " = ?";
-        $stmt = $this->conn->prepare($q);
-        $stmt->bindValue(1,$user);
-        $stmt->execute();
-
-        $row = $stmt->fetch();
-        $count = $row[0];
-        return $count;
-     }
-    
-    
-    public function findByMultipleFields($tableName,$fields){
-        $arr = [];
-        $values = "";
-        
-        foreach ($fields as $item => $v) {
-            $arr[$item] = $item."= ? ";
+        $col = [];
+        foreach ($fields as $key => $value) {
+            array_push($col, $key." = ? ");
         }
+        $values = implode(" and ", $col);
 
-        $values .= implode(" and ",$arr);
-        
-        $q = "SELECT * FROM ".$tableName." WHERE ".$values."  ORDER BY 1 ";
+        $q = "SELECT * FROM ".$table." WHERE ".$values;
         $stmt = $this->conn->prepare($q);
+
         $i = 1;
-        foreach ($fields as $fieldName => $value) {
-            $stmt->bindValue($i,$value);
-            $i++;
+        foreach ($fields as $field) {
+          $stmt->bindValue($i,$field);
+          $i++;
         }
+
         $stmt->execute();
-        return  $stmt; 
-    }
+
+        return $stmt;
+
+     }
 
 
-     
-
+     public function getMedia($table,$id,$type)
+     {
+         $fields = ['image_type_id ' => $id , 'image_type' => $type];
+         $stmt = $this->selectByMore($table,$fields);
+         $row = $stmt->fetch();
+         return ['image' => $row['image'] , 'id' => $row['id'] ];
+     }
 
 
 
